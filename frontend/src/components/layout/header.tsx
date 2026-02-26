@@ -15,10 +15,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { NotificationBell } from '@/components/notification-bell';
 import { useAuth } from '@/components/auth-provider';
+import { useSiteSettings } from '@/components/settings-provider';
 
 export function Header() {
     const { theme, setTheme } = useTheme();
     const { isLoggedIn, profile, isAdmin, signOut } = useAuth();
+    const { settings } = useSiteSettings();
     const router = useRouter();
 
     const initials = profile?.display_name
@@ -35,7 +37,7 @@ export function Header() {
             {/* Left side */}
             <div className="flex items-center gap-2">
                 <h2 className="text-sm font-medium text-muted-foreground">
-                    Dòng họ Lê Huy
+                    {settings.site_subtitle}
                 </h2>
             </div>
 

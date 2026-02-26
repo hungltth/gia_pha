@@ -6,6 +6,7 @@ import { TreePine, Users, Image, Activity, Newspaper, CalendarDays } from 'lucid
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
+import { useSiteSettings } from '@/components/settings-provider';
 
 interface Stats {
     people: number;
@@ -19,6 +20,7 @@ interface Stats {
 export default function HomePage() {
     const [stats, setStats] = useState<Stats>({ people: 0, families: 0, profiles: 0, posts: 0, events: 0, media: 0 });
     const [loading, setLoading] = useState(true);
+    const { settings } = useSiteSettings();
 
     useEffect(() => {
         async function fetchStats() {
@@ -49,7 +51,7 @@ export default function HomePage() {
         <div className="space-y-6">
             <div>
                 <h1 className="text-2xl font-bold tracking-tight">Trang chủ</h1>
-                <p className="text-muted-foreground">Chào mừng đến với Gia phả dòng họ Lê Huy</p>
+                <p className="text-muted-foreground">Chào mừng đến với {settings.site_subtitle || settings.site_title}</p>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">

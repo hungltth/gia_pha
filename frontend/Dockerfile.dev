@@ -1,0 +1,25 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Enable corepack for modern package managers (optional but good practice)
+RUN corepack enable
+
+# Install Python and build-base in case some native dependencies need it
+RUN apk add --no-cache libc6-compat python3 make g++
+
+# Copy package files
+COPY package.json package-lock.json ./
+
+# Install all dependencies
+RUN npm install
+
+# Expose the standard Next.js port
+EXPOSE 3000
+
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+ENV NODE_ENV=development
+
+# Start the Next.js dev server
+CMD ["npm", "run", "dev"]

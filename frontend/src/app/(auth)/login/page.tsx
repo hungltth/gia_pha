@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/components/auth-provider';
+import { useSiteSettings } from '@/components/settings-provider';
 
 const loginSchema = z.object({
     email: z.string().email('Email không hợp lệ'),
@@ -27,6 +28,7 @@ export default function LoginPage() {
     const [success, setSuccess] = useState('');
     const [loading, setLoading] = useState(false);
     const [mode, setMode] = useState<'login' | 'register'>('login');
+    const { settings } = useSiteSettings();
 
     const {
         register,
@@ -72,7 +74,7 @@ export default function LoginPage() {
                         <TreePine className="h-8 w-8 text-primary" />
                     </div>
                 </div>
-                <CardTitle className="text-2xl font-bold">Gia phả họ Lê</CardTitle>
+                <CardTitle className="text-2xl font-bold">{settings.site_title}</CardTitle>
                 <CardDescription>
                     {mode === 'login'
                         ? 'Đăng nhập để quản lý & đóng góp thông tin'

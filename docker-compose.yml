@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: gia_pha_nextjs
+    ports:
+      - "3001:3000"
+    volumes:
+      # Map the entire frontend directory to /app in the container
+      - ./frontend:/app
+      # Exclude node_modules and .next from being overridden by the local filesystem
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+      # You can map env local directly using env_file or add needed variables here
+      # if Supabase keys need to be exposed, you can add them to frontend/.env.local 
+    env_file:
+      - ./frontend/.env.local
+    stdin_open: true  # Useful for Next.js hot reloading on some setups
+    tty: true

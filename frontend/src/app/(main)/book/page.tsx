@@ -7,6 +7,7 @@ import { fetchTreeData } from '@/lib/supabase-data';
 import { generateBookData, type BookData, type BookPerson, type BookChapter } from '@/lib/book-generator';
 import type { TreeNode, TreeFamily } from '@/lib/tree-layout';
 import Link from 'next/link';
+import { useSiteSettings, type SiteSettings } from '@/components/settings-provider';
 
 // ═══ Color Themes ═══
 interface Theme {
@@ -51,6 +52,7 @@ const THEMES: Record<string, Theme> = {
 type ThemeKey = keyof typeof THEMES;
 
 export default function BookPage() {
+    const { settings, isLoading: settingsLoading } = useSiteSettings();
     const [bookData, setBookData] = useState<BookData | null>(null);
     const [loading, setLoading] = useState(true);
     const [previewMode, setPreviewMode] = useState(false);
@@ -68,6 +70,7 @@ export default function BookPage() {
     const t = THEMES[theme];
 
     useEffect(() => {
+        if (settingsLoading) return;
         const fetchAndGenerate = async () => {
             let people: TreeNode[] = [];
             let families: TreeFamily[] = [];
@@ -85,15 +88,15 @@ export default function BookPage() {
                 people = mock.people;
                 families = mock.families;
             }
-            const familyName = people.length > 0 ? (people[0].displayName?.split(' ').slice(0, 2).join(' ') || 'Dòng Họ') : 'Dòng Họ';
+            const familyName = settings.site_title;
             const data = generateBookData(people, families, familyName);
             setBookData(data);
             setLoading(false);
         };
         fetchAndGenerate();
-    }, []);
+    }, [settingsLoading, settings.site_title]);
 
-    if (loading) {
+    if (loading || settingsLoading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <div className="animate-pulse text-muted-foreground flex items-center gap-2">
@@ -318,7 +321,7 @@ export default function BookPage() {
                                             className="w-[210mm] h-[297mm] origin-top-left"
                                             style={{ transform: `scale(0.35)` }}
                                         >
-                                            <BookSection sectionId={s.id} bookData={bookData} theme={t}
+                                            <BookSection sectionId={s.id} bookData={bookData} theme={t} settings={settings}
                                                 memberStart={s.memberStart} memberEnd={s.memberEnd} isFirstPage={s.isFirstPage}
                                                 appendixStart={s.appendixStart} appendixEnd={s.appendixEnd} appendixIsFirst={s.appendixIsFirst} />
                                         </div>
@@ -338,7 +341,7 @@ export default function BookPage() {
                 <div className="book-content max-w-[210mm] mx-auto bg-white"
                     style={{ fontFamily: "'Noto Serif', Georgia, serif", color: t.text }}>
 
-                    <CoverPage bookData={bookData} theme={t} />
+                    <CoverPage bookData={bookData} theme={t} settings={settings} />
 
                     <section id="toc" className="page-break px-8 py-12">
                         <span className="page-label">Trang 2</span>
@@ -402,14 +405,14 @@ export default function BookPage() {
 }
 
 // ═══ BookSection — renders a single section for preview gallery ═══
-function BookSection({ sectionId, bookData, theme: t, memberStart, memberEnd, isFirstPage, appendixStart, appendixEnd, appendixIsFirst }: {
-    sectionId: string; bookData: BookData; theme: Theme;
+function BookSection({ sectionId, bookData, theme: t, settings, memberStart, memberEnd, isFirstPage, appendixStart, appendixEnd, appendixIsFirst }: {
+    sectionId: string; bookData: BookData; theme: Theme; settings: SiteSettings;
     memberStart?: number; memberEnd?: number; isFirstPage?: boolean;
     appendixStart?: number; appendixEnd?: number; appendixIsFirst?: boolean;
 }) {
     return (
         <div className="book-content px-12 py-12" style={{ fontFamily: "'Noto Serif', Georgia, serif", color: t.text }}>
-            {sectionId === 'cover' && <CoverPage bookData={bookData} theme={t} />}
+            {sectionId === 'cover' && <CoverPage bookData={bookData} theme={t} settings={settings} />}
             {sectionId === 'toc' && <TocContent bookData={bookData} theme={t} />}
             {(sectionId === 'appendix' || sectionId.startsWith('appendix-')) && (
                 <AppendixContent bookData={bookData} theme={t}
@@ -433,17 +436,19 @@ function BookSection({ sectionId, bookData, theme: t, memberStart, memberEnd, is
 
 // ═══ Section Components ═══
 
-function CoverPage({ bookData, theme: t }: { bookData: BookData; theme: Theme }) {
+function CoverPage({ bookData, theme: t, settings }: { bookData: BookData; theme: Theme; settings: SiteSettings }) {
     return (
         <section className="cover-page flex flex-col items-center justify-center text-center px-8 py-16 min-h-[280mm]">
             <div className="flex-1 flex flex-col items-center justify-center">
                 <div className="w-24 h-0.5 mb-8" style={{ background: t.primary }} />
-                <h1 className="text-4xl font-bold tracking-wider font-serif mb-2" style={{ color: t.primary }}>
-                    GIA PHẢ
+                <h1 className="text-5xl font-bold tracking-widest font-serif mb-8 text-center leading-snug" style={{ color: t.secondary }}>
+                    {settings.site_title.toUpperCase()}
                 </h1>
-                <h2 className="text-5xl font-bold tracking-widest font-serif mb-8" style={{ color: t.secondary }}>
-                    DÒNG HỌ {bookData.familyName.toUpperCase()}
-                </h2>
+                {settings.site_subtitle && (
+                    <h2 className="text-2xl font-bold tracking-widest font-serif mb-8 text-center" style={{ color: t.primary }}>
+                        {settings.site_subtitle.toUpperCase()}
+                    </h2>
+                )}
                 <div className="w-32 h-0.5 mb-10" style={{ background: t.primary }} />
                 <div className="space-y-2 text-lg font-serif" style={{ color: t.textMuted }}>
                     <p>{bookData.totalGenerations} đời · {bookData.totalMembers} thành viên</p>
@@ -452,7 +457,7 @@ function CoverPage({ bookData, theme: t }: { bookData: BookData; theme: Theme })
             </div>
             <div className="text-sm font-serif" style={{ color: t.textMuted }}>
                 <p>Xuất bản ngày {bookData.exportDate}</p>
-                <p className="mt-1">Gia phả dòng họ {bookData.familyName}</p>
+                <p className="mt-1">{settings.site_title}</p>
             </div>
         </section>
     );
@@ -625,7 +630,7 @@ function AppendixContent({ bookData, theme: t, startIdx, endIdx, showHeader }: {
             {showPatriHeader && start === 0 && (
                 <h3 className="text-base font-bold font-serif mb-3 tracking-wide pb-2"
                     style={{ color: t.primary, borderBottom: `1px solid ${t.border}` }}>
-                    NỘI TỘC — Dòng họ {bookData.familyName} ({patrilineal.length} người)
+                    NỘI TỘC — {bookData.familyName} ({patrilineal.length} người)
                 </h3>
             )}
 
@@ -670,7 +675,7 @@ function ClosingContent({ bookData, theme: t }: { bookData: BookData; theme: The
             </p>
             <div className="w-16 h-0.5 mx-auto mt-8 mb-6" style={{ background: t.primary }} />
             <p className="text-sm" style={{ color: t.textMuted }}>
-                Gia phả dòng họ {bookData.familyName}<br />
+                {bookData.familyName}<br />
                 {bookData.exportDate}
             </p>
         </>

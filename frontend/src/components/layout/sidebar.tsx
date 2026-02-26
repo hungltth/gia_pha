@@ -22,6 +22,8 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { useAuth } from '@/components/auth-provider';
+import { useSiteSettings } from '@/components/settings-provider';
+import { Settings } from 'lucide-react';
 
 const navItems = [
     { href: '/', label: 'Trang chủ', icon: Home },
@@ -38,6 +40,7 @@ const adminItems = [
     { href: '/admin/users', label: 'Quản lý Users', icon: Shield },
     { href: '/admin/edits', label: 'Kiểm duyệt', icon: ClipboardCheck },
     { href: '/admin/audit', label: 'Audit Log', icon: FileText },
+    { href: '/admin/settings', label: 'Cấu hình chung', icon: Settings },
     { href: '/admin/backup', label: 'Backup', icon: Database },
 ];
 
@@ -45,6 +48,7 @@ export function Sidebar() {
     const pathname = usePathname();
     const [collapsed, setCollapsed] = useState(false);
     const { isAdmin } = useAuth();
+    const { settings } = useSiteSettings();
 
     return (
         <aside
@@ -56,7 +60,7 @@ export function Sidebar() {
             {/* Logo */}
             <div className="flex items-center gap-2 px-4 py-4 border-b">
                 <TreePine className="h-6 w-6 text-primary shrink-0" />
-                {!collapsed && <span className="font-bold text-lg">Gia phả họ Lê</span>}
+                {!collapsed && <span className="font-bold text-lg">{settings.site_title}</span>}
             </div>
 
             {/* Navigation */}
@@ -112,19 +116,6 @@ export function Sidebar() {
                     </>
                 )}
             </nav>
-
-            {/* Contact info */}
-            {!collapsed && (
-                <div className="border-t px-4 py-3">
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                        Để thiết lập <span className="font-semibold text-foreground">gia phả điện tử</span> riêng cho dòng họ, truy cập được từ bất kì đâu, vui lòng liên hệ
-                        <br />
-                        <span className="font-semibold text-foreground">📞 088 999 1120</span>
-                        <br />
-                        <span className="text-[10px] opacity-70">để nhận báo giá.</span>
-                    </p>
-                </div>
-            )}
 
             {/* Collapse toggle */}
             <div className="border-t p-2">

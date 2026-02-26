@@ -189,6 +189,8 @@ export async function updatePerson(
         occupation?: string | null;
         education?: string | null;
         notes?: string | null;
+        families?: string[];
+        parentFamilies?: string[];
     }
 ): Promise<void> {
     // Convert camelCase → snake_case for DB
@@ -204,6 +206,8 @@ export async function updatePerson(
     if (fields.occupation !== undefined) dbFields.occupation = fields.occupation;
     if (fields.education !== undefined) dbFields.education = fields.education;
     if (fields.notes !== undefined) dbFields.notes = fields.notes;
+    if (fields.families !== undefined) dbFields.families = fields.families;
+    if (fields.parentFamilies !== undefined) dbFields.parent_families = fields.parentFamilies;
     dbFields.updated_at = new Date().toISOString();
 
     const { error } = await supabase
@@ -281,6 +285,76 @@ export async function addFamily(family: {
 
     if (error) {
         console.error('Failed to add family:', error.message);
+        return { error: error.message };
+    }
+    return { error: null };
+}
+
+/** Update a family */
+export async function updateFamily(
+    handle: string,
+    fields: {
+        fatherHandle?: string | null;
+        motherHandle?: string | null;
+        children?: string[];
+    }
+): Promise<{ error: string | null }> {
+    const dbFields: Record<string, unknown> = {};
+    if (fields.fatherHandle !== undefined) dbFields.father_handle = fields.fatherHandle;
+    if (fields.motherHandle !== undefined) dbFields.mother_handle = fields.motherHandle;
+    if (fields.children !== undefined) dbFields.children = fields.children;
+
+    const { error } = await supabase
+        .from('families')
+        .update(dbFields)
+        .eq('handle', handle);
+
+    if (error) {
+        console.error('Failed to update family:', error.message);
+        return { error: error.message };
+    }
+    return { error: null };
+}
+
+/** Delete multiple people by their handles */
+export async function deletePeople(handles: string[]): Promise<{ error: string | null }> {
+    if (!handles.length) return { error: null };
+    const { error } = await supabase
+        .from('people')
+        .delete()
+        .in('handle', handles);
+
+    if (error) {
+        console.error('Failed to delete people:', error.message);
+        return { error: error.message };
+    }
+    return { error: null };
+}
+
+/** Delete a family */
+export async function deleteFamily(handle: string): Promise<{ error: string | null }> {
+    const { error } = await supabase
+        .from('families')
+        .delete()
+        .eq('handle', handle);
+
+    if (error) {
+        console.error('Failed to delete family:', error.message);
+        return { error: error.message };
+    }
+    return { error: null };
+}
+
+/** Delete multiple families by their handles */
+export async function deleteFamilies(handles: string[]): Promise<{ error: string | null }> {
+    if (!handles.length) return { error: null };
+    const { error } = await supabase
+        .from('families')
+        .delete()
+        .in('handle', handles);
+
+    if (error) {
+        console.error('Failed to delete families:', error.message);
         return { error: error.message };
     }
     return { error: null };

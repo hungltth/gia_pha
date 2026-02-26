@@ -420,7 +420,9 @@ export function computeLayout(people: TreeNode[], families: TreeFamily[]): Layou
     const rootFamilies = families.filter(f => {
         const fh = f.fatherHandle ? personMap.get(f.fatherHandle) : null;
         const mh = f.motherHandle ? personMap.get(f.motherHandle) : null;
-        return (fh && !childOfAnyFamily.has(fh.handle)) || (mh && !childOfAnyFamily.has(mh.handle));
+        const fatherIsRoot = fh ? !childOfAnyFamily.has(fh.handle) : true;
+        const motherIsRoot = mh ? !childOfAnyFamily.has(mh.handle) : true;
+        return (fh || mh) && fatherIsRoot && motherIsRoot;
     });
 
     const allNodes: PositionedNode[] = [];
@@ -431,7 +433,9 @@ export function computeLayout(people: TreeNode[], families: TreeFamily[]): Layou
     for (const fam of rootFamilies) {
         const subtree = buildSubtree(fam, personMap, familyMap, visited);
         if (!subtree) continue;
-        assignPositions(subtree, cursorX, 0, allNodes, placed);
+        const patriNode = subtree.patrilineal || subtree.father || subtree.mother;
+        const gen = patriNode ? (gens.get(patriNode.handle) ?? 0) : 0;
+        assignPositions(subtree, cursorX, gen, allNodes, placed);
         cursorX += subtree.width + H_SPACE;
     }
 
@@ -590,32 +594,9 @@ export function computeLayout(people: TreeNode[], families: TreeFamily[]): Layou
 
 function assignGenerations(people: TreeNode[], families: TreeFamily[]): Map<string, number> {
     const gens = new Map<string, number>();
-    const familyMap = new Map(families.map(f => [f.handle, f]));
-
-    function setGen(handle: string, gen: number) {
-        const current = gens.get(handle);
-        if (current !== undefined && current <= gen) return;
-        gens.set(handle, gen);
-        const person = people.find(p => p.handle === handle);
-        if (!person) return;
-        for (const famId of person.families) {
-            const fam = familyMap.get(famId);
-            if (!fam) continue;
-            if (fam.fatherHandle && fam.fatherHandle !== handle) setGen(fam.fatherHandle, gen);
-            if (fam.motherHandle && fam.motherHandle !== handle) setGen(fam.motherHandle, gen);
-            for (const ch of fam.children) setGen(ch, gen + 1);
-        }
-    }
-
     for (const p of people) {
-        if (p.parentFamilies.length === 0 && !gens.has(p.handle)) {
-            setGen(p.handle, 0);
-        }
+        gens.set(p.handle, Math.max(0, (p.generation || 1) - 1));
     }
-    for (const p of people) {
-        if (!gens.has(p.handle)) setGen(p.handle, 0);
-    }
-
     return gens;
 }
 

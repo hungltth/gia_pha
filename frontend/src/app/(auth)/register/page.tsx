@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/lib/supabase';
+import { useSiteSettings } from '@/components/settings-provider';
 
 const registerSchema = z.object({
     email: z.string().email('Email không hợp lệ'),
@@ -30,6 +31,7 @@ function RegisterContent() {
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const { settings } = useSiteSettings();
 
     const {
         register,
@@ -114,7 +116,7 @@ function RegisterContent() {
                         <TreePine className="h-8 w-8 text-primary" />
                     </div>
                 </div>
-                <CardTitle className="text-2xl font-bold">Tham gia Gia phả họ Lê</CardTitle>
+                <CardTitle className="text-2xl font-bold">Tham gia {settings.site_title}</CardTitle>
                 <CardDescription>Đăng ký tham gia nền tảng gia phả dòng họ</CardDescription>
             </CardHeader>
             <CardContent>

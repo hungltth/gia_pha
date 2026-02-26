@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo, memo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
 import { ContributeDialog } from '@/components/contribute-dialog';
-import { Search, ZoomIn, ZoomOut, Maximize2, TreePine, Eye, Users, GitBranch, User, ArrowDownToLine, ArrowUpFromLine, Crosshair, X, ChevronDown, ChevronRight, BarChart3, Package, Link, ChevronsDownUp, ChevronsUpDown, Copy, Pencil, Save, RotateCcw, Trash2, ArrowUp, ArrowDown, GripVertical, MessageSquarePlus } from 'lucide-react';
+import { Search, ZoomIn, ZoomOut, Maximize2, TreePine, Eye, Users, GitBranch, User, ArrowDownToLine, ArrowUpFromLine, Crosshair, X, ChevronDown, ChevronRight, BarChart3, Package, Link, ChevronsDownUp, ChevronsUpDown, Copy, Pencil, Save, RotateCcw, Trash2, ArrowUp, ArrowDown, GripVertical, MessageSquarePlus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,7 +16,9 @@ import {
     removeChildFromFamily as supaRemoveChild,
     updatePersonLiving as supaUpdatePersonLiving,
     updatePerson as supaUpdatePerson,
+    deletePeople, deleteFamilies, addPerson, addFamily
 } from '@/lib/supabase-data';
+import { ConfirmDeleteDialog, AddPersonDialog, type AddRelationType } from '@/components/tree-editor-dialogs';
 import {
     computeLayout, filterAncestors, filterDescendants,
     CARD_W, CARD_H,
@@ -138,28 +140,9 @@ const AUTO_COLLAPSE_GEN = 8;
 
 // Compute generations via BFS from root persons (persons not in any family as children)
 function computePersonGenerations(people: TreeNode[], families: TreeFamily[]): Map<string, number> {
-    const childOf = new Set<string>();
-    for (const f of families) for (const ch of f.children) childOf.add(ch);
-    const roots = people.filter(p => p.isPatrilineal && !childOf.has(p.handle));
     const gens = new Map<string, number>();
-    const familyMap = new Map(families.map(f => [f.handle, f]));
-    const queue: { handle: string; gen: number }[] = roots.map(r => ({ handle: r.handle, gen: 0 }));
-    while (queue.length > 0) {
-        const { handle, gen } = queue.shift()!;
-        if (gens.has(handle)) continue;
-        gens.set(handle, gen);
-        const person = people.find(p => p.handle === handle);
-        if (!person) continue;
-        for (const fId of person.families) {
-            const fam = familyMap.get(fId);
-            if (!fam) continue;
-            // Spouse at same gen
-            if (fam.fatherHandle && !gens.has(fam.fatherHandle)) gens.set(fam.fatherHandle, gen);
-            if (fam.motherHandle && !gens.has(fam.motherHandle)) gens.set(fam.motherHandle, gen);
-            for (const ch of fam.children) {
-                if (!gens.has(ch)) queue.push({ handle: ch, gen: gen + 1 });
-            }
-        }
+    for (const p of people) {
+        gens.set(p.handle, Math.max(0, (p.generation || 1) - 1));
     }
     return gens;
 }
@@ -191,6 +174,11 @@ export default function TreeViewPage() {
     const [editorMode, setEditorMode] = useState(false);
     const [selectedCard, setSelectedCard] = useState<string | null>(null);
     const { isAdmin } = useAuth();
+
+    // Dialog states
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [addDialogOpen, setAddDialogOpen] = useState(false);
+    const [addRelation, setAddRelation] = useState<AddRelationType | null>(null);
 
     // URL query param initialization + auto-collapse on initial load
     const urlInitialized = useRef(false);
@@ -289,15 +277,12 @@ export default function TreeViewPage() {
             // Load from Supabase
             try {
                 const data = await fetchTreeData();
-                if (data.people.length > 0) {
-                    setTreeData(data);
-                    setLoading(false);
-                    return;
-                }
-            } catch { /* fallback to mock */ }
-            // Fallback: use bundled mock data (demo mode)
-            setTreeData(getMockTreeData());
-            setLoading(false);
+                setTreeData(data);
+            } catch {
+                setTreeData({ people: [], families: [] });
+            } finally {
+                setLoading(false);
+            }
         };
         fetchTree();
     }, []);
@@ -942,6 +927,31 @@ export default function TreeViewPage() {
                         </div>
                     )}
 
+                    {/* Empty State UI */}
+                    {!loading && treeData?.people.length === 0 && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-slate-50/80 backdrop-blur-sm z-10 rounded-xl">
+                            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center max-w-sm w-full mx-auto">
+                                <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+                                    <Users className="w-8 h-8" />
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-800 mb-2">Cây gia phả trống</h3>
+                                <p className="text-slate-500 mb-6 text-sm">
+                                    Gia phả của bạn chưa có thành viên nào. Hãy bắt đầu bằng cách thêm người đầu tiên.
+                                </p>
+                                <Button
+                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg shadow-sm transition-all flex items-center justify-center gap-2"
+                                    onClick={() => {
+                                        setAddRelation('root');
+                                        setAddDialogOpen(true);
+                                    }}
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Thêm thủy tổ
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+
                     {/* F2: Generation Row Headers */}
                     {layout && (
                         <GenerationHeaders
@@ -1040,9 +1050,127 @@ export default function TreeViewPage() {
                             setTreeData(data);
                         }}
                         onClose={() => { setEditorMode(false); setSelectedCard(null); }}
+                        onAddClick={(relation) => {
+                            setAddRelation(relation as AddRelationType);
+                            setAddDialogOpen(true);
+                        }}
+                        onDeleteClick={() => {
+                            setDeleteDialogOpen(true);
+                        }}
                     />
                 )}
             </div>
+
+            {/* Dialogs */}
+            <ConfirmDeleteDialog
+                person={selectedCard && treeData ? treeData.people.find(p => p.handle === selectedCard) || null : null}
+                isOpen={deleteDialogOpen}
+                onClose={() => setDeleteDialogOpen(false)}
+                onConfirm={async (deleteDescendants) => {
+                    if (!selectedCard || !treeData) return;
+                    setDeleteDialogOpen(false);
+                    const handle = selectedCard;
+                    let handlesToDelete = new Set([handle]);
+
+                    if (deleteDescendants) {
+                        const { filteredPeople } = filterDescendants(handle, treeData.people, treeData.families);
+                        handlesToDelete = new Set(filteredPeople.map(p => p.handle));
+                    }
+
+                    const famsToDelete = treeData.families.filter(f =>
+                        (f.fatherHandle && handlesToDelete.has(f.fatherHandle)) ||
+                        (f.motherHandle && handlesToDelete.has(f.motherHandle))
+                    );
+                    const famHandlesToDelete = famsToDelete.map(f => f.handle);
+
+                    const famsToUpdate = treeData.families.filter(f => !famHandlesToDelete.includes(f.handle) && f.children.some(ch => handlesToDelete.has(ch)));
+
+                    await Promise.all(famsToUpdate.map(f => supaUpdateFamilyChildren(f.handle, f.children.filter(ch => !handlesToDelete.has(ch)))));
+                    await deleteFamilies(famHandlesToDelete);
+                    await deletePeople(Array.from(handlesToDelete));
+
+                    setSelectedCard(null);
+                    setEditorMode(false);
+                    const data = await fetchTreeData();
+                    setTreeData(data);
+                }}
+            />
+
+            <AddPersonDialog
+                targetPerson={selectedCard && treeData ? treeData.people.find(p => p.handle === selectedCard) || null : null}
+                relationType={addRelation}
+                isOpen={addDialogOpen}
+                onClose={() => setAddDialogOpen(false)}
+                onConfirm={async (data) => {
+                    if (!treeData || !addRelation) return;
+                    if (addRelation !== 'root' && !selectedCard) return;
+
+                    setAddDialogOpen(false);
+                    const newHandle = data.displayName.toLowerCase().replace(/[^a-z0-9]/g, '') + '-' + Math.floor(Math.random() * 10000);
+
+                    const targetPerson = selectedCard ? treeData.people.find(p => p.handle === selectedCard) : null;
+                    if (addRelation !== 'root' && !targetPerson) return;
+
+                    const newPerson = {
+                        handle: newHandle,
+                        displayName: data.displayName,
+                        gender: data.gender,
+                        generation: addRelation === 'root' ? 1 : (targetPerson as any).generation ?? 1,
+                        birthYear: data.birthYear ? parseInt(data.birthYear) : null,
+                        deathYear: null,
+                        isLiving: data.isLiving,
+                        families: [] as string[],
+                        parentFamilies: [] as string[]
+                    };
+
+                    if (addRelation === 'child') {
+                        newPerson.generation += 1;
+                        let parentFam = treeData.families.find(f => f.fatherHandle === targetPerson.handle || f.motherHandle === targetPerson.handle);
+                        if (!parentFam) {
+                            const famHandle = `fam-${targetPerson.handle}-${Math.floor(Math.random() * 1000)}`;
+                            const fam = {
+                                handle: famHandle,
+                                fatherHandle: targetPerson.gender === 1 ? targetPerson.handle : null,
+                                motherHandle: targetPerson.gender === 2 ? targetPerson.handle : null,
+                                children: [newHandle]
+                            };
+                            await addFamily(fam);
+                            newPerson.parentFamilies.push(famHandle);
+                        } else {
+                            newPerson.parentFamilies.push(parentFam.handle);
+                            await supaUpdateFamilyChildren(parentFam.handle, [...parentFam.children, newHandle]);
+                        }
+                    } else if (addRelation === 'spouse') {
+                        const famHandle = `fam-${targetPerson.handle}-${newHandle}`;
+                        const fam = {
+                            handle: famHandle,
+                            fatherHandle: targetPerson.gender === 1 ? targetPerson.handle : newHandle,
+                            motherHandle: targetPerson.gender === 2 ? targetPerson.handle : newHandle,
+                            children: [] as string[]
+                        };
+                        await addFamily(fam);
+                        newPerson.families.push(famHandle);
+                        await supaUpdatePerson(targetPerson.handle, {
+                            families: [...targetPerson.families, famHandle]
+                        });
+                    } else if (addRelation === 'parent') {
+                        newPerson.generation -= 1;
+                        const famHandle = `fam-${newHandle}-${Math.floor(Math.random() * 1000)}`;
+                        const fam = {
+                            handle: famHandle,
+                            fatherHandle: data.gender === 1 ? newHandle : null,
+                            motherHandle: data.gender === 2 ? newHandle : null,
+                            children: [targetPerson.handle]
+                        };
+                        await addFamily(fam);
+                        newPerson.families.push(famHandle);
+                    }
+
+                    await addPerson(newPerson);
+                    const updatedData = await fetchTreeData();
+                    setTreeData(updatedData);
+                }}
+            />
 
             {/* Legend */}
             <div className="flex gap-3 text-[10px] text-muted-foreground pt-1.5 px-1 flex-wrap">
@@ -1054,14 +1182,16 @@ export default function TreeViewPage() {
                 <span className="ml-auto opacity-50">Cuộn để zoom • Kéo để di chuyển • Nhấn để xem</span>
             </div>
             {/* Contribute dialog */}
-            {contributePerson && (
-                <ContributeDialog
-                    personHandle={contributePerson.handle}
-                    personName={contributePerson.name}
-                    onClose={() => setContributePerson(null)}
-                />
-            )}
-        </div>
+            {
+                contributePerson && (
+                    <ContributeDialog
+                        personHandle={contributePerson.handle}
+                        personName={contributePerson.name}
+                        onClose={() => setContributePerson(null)}
+                    />
+                )
+            }
+        </div >
     );
 }
 
@@ -1502,7 +1632,7 @@ function StatsOverlay({ stats, onClose }: { stats: TreeStats; onClose: () => voi
 }
 
 // === Editor Panel Component ===
-function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, onRemoveChild, onToggleLiving, onUpdatePerson, onReset, onClose }: {
+function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, onRemoveChild, onToggleLiving, onUpdatePerson, onReset, onClose, onAddClick, onDeleteClick }: {
     selectedCard: string | null;
     treeData: { people: TreeNode[]; families: TreeFamily[] } | null;
     onReorderChildren: (familyHandle: string, newOrder: string[]) => void;
@@ -1512,8 +1642,11 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
     onUpdatePerson: (handle: string, fields: Record<string, unknown>) => void;
     onReset: () => void;
     onClose: () => void;
+    onAddClick: (relation: 'parent' | 'spouse' | 'child') => void;
+    onDeleteClick: () => void;
 }) {
     const [editName, setEditName] = useState('');
+    const [editGender, setEditGender] = useState<number>(1);
     const [editBirthYear, setEditBirthYear] = useState('');
     const [editDeathYear, setEditDeathYear] = useState('');
     const [dirty, setDirty] = useState(false);
@@ -1531,6 +1664,7 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
     useEffect(() => {
         if (person) {
             setEditName(person.displayName || '');
+            setEditGender(person.gender ?? 1);
             setEditBirthYear(person.birthYear?.toString() || '');
             setEditDeathYear(person.deathYear?.toString() || '');
             setDirty(false);
@@ -1593,6 +1727,7 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
         setSaving(true);
         const fields: Record<string, unknown> = {};
         if (editName !== person.displayName) fields.displayName = editName;
+        if (editGender !== person.gender) fields.gender = editGender;
         const newBirth = editBirthYear ? parseInt(editBirthYear) : null;
         if (newBirth !== (person.birthYear ?? null)) fields.birthYear = newBirth;
         const newDeath = editDeathYear ? parseInt(editDeathYear) : null;
@@ -1644,6 +1779,16 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
                             <label className="text-xs text-muted-foreground">Họ tên</label>
                             <input className="w-full border rounded px-2 py-1 text-sm bg-background" value={editName}
                                 onChange={e => { setEditName(e.target.value); setDirty(true); }} />
+                        </div>
+
+                        {/* Editable Gender */}
+                        <div>
+                            <label className="text-xs text-muted-foreground">Giới tính</label>
+                            <select className="w-full border rounded px-2 py-1 text-sm bg-background" value={editGender}
+                                onChange={e => { setEditGender(Number(e.target.value)); setDirty(true); }}>
+                                <option value={1}>Nam</option>
+                                <option value={2}>Nữ</option>
+                            </select>
                         </div>
 
                         {/* Birth / Death Year */}
@@ -1762,7 +1907,7 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
                                     onFocus={() => setShowParentDropdown(true)}
                                 />
                                 {showParentDropdown && (
-                                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-background border rounded shadow-lg max-h-48 overflow-y-auto">
+                                    <div className="absolute z-50 bottom-full mb-1 left-0 right-0 bg-background border rounded shadow-lg max-h-48 overflow-y-auto">
                                         {filteredParentFamilies.length === 0 ? (
                                             <div className="px-2 py-2 text-xs text-muted-foreground text-center">
                                                 Không tìm thấy
@@ -1794,6 +1939,28 @@ function EditorPanel({ selectedCard, treeData, onReorderChildren, onMoveChild, o
                             </div>
                         </div>
                     )}
+
+                    {/* Actions: Add / Delete */}
+                    <div className="p-3 flex flex-col gap-2">
+                        <div className="grid grid-cols-2 gap-2">
+                            <button className="px-2 py-1.5 text-xs font-medium rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                                onClick={() => onAddClick('parent')}>
+                                + Cha/mẹ
+                            </button>
+                            <button className="px-2 py-1.5 text-xs font-medium rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                                onClick={() => onAddClick('spouse')}>
+                                + Vợ/chồng
+                            </button>
+                            <button className="px-2 py-1.5 text-xs font-medium rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors col-span-2"
+                                onClick={() => onAddClick('child')}>
+                                + Con cái
+                            </button>
+                        </div>
+                        <button className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors border border-red-200"
+                            onClick={onDeleteClick}>
+                            <Trash2 className="h-3.5 w-3.5" /> Xóa thẻ này
+                        </button>
+                    </div>
                 </div>
             )}
         </div>

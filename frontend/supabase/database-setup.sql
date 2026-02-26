@@ -260,3 +260,43 @@ ON CONFLICT (handle) DO NOTHING;
 -- ============================================================
 SELECT '✅ Database setup complete! Demo data loaded.' AS status;
 -- ============================================================
+
+
+-- ╔══════════════════════════════════════════════════════════╗
+-- ║  7. SYSTEM SETTINGS (cấu hình website)                  ║
+-- ╚══════════════════════════════════════════════════════════╝
+
+CREATE TABLE IF NOT EXISTS system_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    description TEXT,
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Insert default settings if they don't exist
+INSERT INTO system_settings (key, value, description)
+VALUES 
+    ('site_title', 'Gia phả họ Lê', 'Tiêu đề chính hiển thị trên Header, Sidebar và các trang'),
+    ('site_subtitle', 'Dòng họ Lê Huy', 'Tiêu đề phụ hoặc dòng chữ nhỏ giáp tên họ')
+ON CONFLICT (key) DO NOTHING;
+
+-- RLS: public read, admin write
+ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "anyone can read system settings" ON system_settings 
+    FOR SELECT USING (true);
+
+CREATE POLICY "admin can update system settings" ON system_settings
+    FOR UPDATE USING (
+        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+    );
+
+CREATE POLICY "admin can insert system settings" ON system_settings
+    FOR INSERT WITH CHECK (
+        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+    );
+
+CREATE POLICY "admin can delete system settings" ON system_settings
+    FOR DELETE USING (
+        EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
+    );
