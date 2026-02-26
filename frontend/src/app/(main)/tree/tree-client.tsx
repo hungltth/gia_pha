@@ -1125,13 +1125,13 @@ export default function TreeViewPage() {
 
                     if (addRelation === 'child') {
                         newPerson.generation += 1;
-                        let parentFam = treeData.families.find(f => f.fatherHandle === targetPerson.handle || f.motherHandle === targetPerson.handle);
+                        let parentFam = treeData.families.find(f => f.fatherHandle === targetPerson!.handle || f.motherHandle === targetPerson!.handle);
                         if (!parentFam) {
-                            const famHandle = `fam-${targetPerson.handle}-${Math.floor(Math.random() * 1000)}`;
+                            const famHandle = `fam-${targetPerson!.handle}-${Math.floor(Math.random() * 1000)}`;
                             const fam = {
                                 handle: famHandle,
-                                fatherHandle: targetPerson.gender === 1 ? targetPerson.handle : null,
-                                motherHandle: targetPerson.gender === 2 ? targetPerson.handle : null,
+                                fatherHandle: targetPerson!.gender === 1 ? targetPerson!.handle : null,
+                                motherHandle: targetPerson!.gender === 2 ? targetPerson!.handle : null,
                                 children: [newHandle]
                             };
                             await addFamily(fam);
@@ -1141,18 +1141,19 @@ export default function TreeViewPage() {
                             await supaUpdateFamilyChildren(parentFam.handle, [...parentFam.children, newHandle]);
                         }
                     } else if (addRelation === 'spouse') {
-                        const famHandle = `fam-${targetPerson.handle}-${newHandle}`;
+                        const famHandle = `fam-${targetPerson!.handle}-${newHandle}`;
                         const fam = {
                             handle: famHandle,
-                            fatherHandle: targetPerson.gender === 1 ? targetPerson.handle : newHandle,
-                            motherHandle: targetPerson.gender === 2 ? targetPerson.handle : newHandle,
+                            fatherHandle: targetPerson!.gender === 1 ? targetPerson!.handle : newHandle,
+                            motherHandle: targetPerson!.gender === 2 ? targetPerson!.handle : newHandle,
                             children: [] as string[]
                         };
                         await addFamily(fam);
                         newPerson.families.push(famHandle);
-                        await supaUpdatePerson(targetPerson.handle, {
-                            families: [...targetPerson.families, famHandle]
+                        await supaUpdatePerson(targetPerson!.handle, {
+                            families: [...targetPerson!.families, famHandle]
                         });
+
                     } else if (addRelation === 'parent') {
                         newPerson.generation -= 1;
                         const famHandle = `fam-${newHandle}-${Math.floor(Math.random() * 1000)}`;
@@ -1160,7 +1161,7 @@ export default function TreeViewPage() {
                             handle: famHandle,
                             fatherHandle: data.gender === 1 ? newHandle : null,
                             motherHandle: data.gender === 2 ? newHandle : null,
-                            children: [targetPerson.handle]
+                            children: [targetPerson!.handle]
                         };
                         await addFamily(fam);
                         newPerson.families.push(famHandle);
